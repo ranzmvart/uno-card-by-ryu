@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>UNO by Ryuu Final</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a"></div><div class="bg-orb orb-b"></div>
+  <div id="loader" class="loader"><div class="loader-card"><div class="loader-logo">UNO</div><p>Memuat arena Ryuu...</p></div></div>
+  <div id="toastStack" class="toast-stack"></div>
+  <div id="cinematic" class="cinematic hidden"><div class="cine-card"><div id="cineIcon" class="cine-icon">✨</div><h2 id="cineTitle">Action</h2><p id="cineText">Effect</p></div></div>
+
+  <main class="app-shell">
+    <aside class="sidebar glass">
+      <div class="brand"><div class="brand-logo">R</div><div><strong>UNO by Ryuu</strong><span>Online Card Arena</span></div></div>
+      <div id="miniProfile" class="mini-profile hidden"></div>
+      <nav class="nav-grid">
+        <button data-page="home" class="nav-btn active">Home</button>
+        <button data-page="auth" class="nav-btn guest-only">Login</button>
+        <button data-page="rooms" class="nav-btn auth-only">Lobby</button>
+        <button data-page="create" class="nav-btn auth-only">Buat Room</button>
+        <button data-page="profile" class="nav-btn auth-only">Profil</button>
+        <button data-page="shop" class="nav-btn auth-only">Shop</button>
+        <button data-page="inventory" class="nav-btn auth-only">Inventory</button>
+        <button data-page="crates" class="nav-btn auth-only">Crates</button>
+        <button data-page="friends" class="nav-btn auth-only">Friends</button>
+        <button data-page="leaderboard" class="nav-btn">Leaderboard</button>
+        <button data-page="guide" class="nav-btn">Panduan</button>
+      </nav>
+      <button id="logoutBtn" class="btn ghost small auth-only">Logout</button>
+    </aside>
+
+    <section class="content">
+      <section id="page-home" class="page active">
+        <div class="hero glass">
+          <p class="eyebrow">Realtime Multiplayer</p><h1>UNO by Ryuu Final</h1>
+          <p class="lead">UNO-style online game dengan login PIN, profil, shop, inventory, crates, friends, voice room, musik bersama, room password, reconnect, leaderboard, dan animasi modern.</p>
+          <div class="hero-actions"><button data-page="rooms" class="btn primary auth-only">Masuk Lobby</button><button data-page="auth" class="btn primary guest-only">Login / Daftar</button><button data-page="guide" class="btn secondary">Cara Main</button></div>
+        </div>
+      </section>
+
+      <section id="page-auth" class="page"><div class="two-col">
+        <div class="panel glass"><p class="eyebrow">Login</p><h2>Masuk Akun</h2><input id="loginName" placeholder="username" /><input id="loginPin" placeholder="PIN" type="password" /><button id="loginBtn" class="btn primary full">Login</button><p class="hint">Akun owner: ryuu / 291206</p></div>
+        <div class="panel glass"><p class="eyebrow">Register</p><h2>Daftar Baru</h2><input id="regName" placeholder="username unik" /><input id="regPin" placeholder="PIN minimal 4" type="password" /><button id="regBtn" class="btn secondary full">Daftar</button><p class="hint">Kalau username sudah dipakai, harus login atau pilih nama lain.</p></div>
+      </div></section>
+
+      <section id="page-rooms" class="page"><div class="page-head"><div><p class="eyebrow">Public Lobby</p><h2>Room Aktif</h2></div><button id="refreshRoomsBtn" class="btn secondary small">Refresh</button></div><div id="roomList" class="card-grid"></div><div class="panel glass join-manual"><h3>Join pakai kode</h3><input id="joinCode" maxlength="5" placeholder="ABCDE" /><input id="joinPass" placeholder="Password room jika ada" /><button id="joinManualBtn" class="btn primary">Join</button></div></section>
+
+      <section id="page-create" class="page"><div class="panel glass narrow"><p class="eyebrow">Create Room</p><h2>Buat Lobby UNO</h2><input id="roomName" placeholder="Nama room" /><input id="roomPass" placeholder="Password opsional" /><button id="createRoomBtn" class="btn primary full">Buat Room</button><p class="hint">Room password akan muncul dengan ikon kunci di public lobby.</p></div></section>
+
+      <section id="page-game" class="page game-page">
+        <header class="game-top glass"><div><p class="eyebrow">Room</p><h2><span id="roomCodeText">-----</span> <small id="roomNameText"></small></h2></div><div class="game-actions"><span id="connectionBadge" class="badge">Connecting</span><button id="copyRoomBtn" class="icon-btn">Copy</button><button id="leaveRoomBtn" class="btn danger small">Keluar</button></div></header>
+        <div id="lobbyPanel" class="panel glass"><div class="page-head"><div><p class="eyebrow">Lobby</p><h2>Tunggu Pemain</h2></div><button id="startGameBtn" class="btn primary">Mulai Game</button></div><p class="hint">Bagikan kode room atau invite teman dari halaman Friends.</p><div id="lobbyPlayers" class="player-grid"></div></div>
+        <div id="boardPanel" class="game-layout">
+          <section class="table glass"><div class="status-row"><div><p class="eyebrow">Status</p><h2 id="statusText">Menunggu...</h2><p id="turnAdvice" class="hint"></p></div><div id="turnTimer" class="timer">--</div></div><div class="table-center"><div class="deck-zone"><div class="deck-card">RYUU</div><button id="drawBtn" class="btn secondary small">Ambil Kartu</button><button id="passBtn" class="btn ghost small">Pass</button><p id="deckCount" class="hint">Deck: 0</p></div><div class="discard-zone"><p class="hint">Kartu Tengah</p><div id="discardCard" class="game-card big-card empty-card">?</div><div id="currentColor" class="color-chip">Warna: -</div></div></div><div class="action-row"><button id="unoBtn" class="btn warning">UNO!</button><button id="restartBtn" class="btn secondary">Main Lagi</button><button id="backLobbyBtn" class="btn ghost">Ke Lobby</button></div></section>
+          <aside class="game-side glass"><div class="tabs"><button class="tab active" data-game-tab="players">Pemain</button><button class="tab" data-game-tab="chat">Chat</button><button class="tab" data-game-tab="log">Log</button><button class="tab" data-game-tab="power">Power</button></div><div id="tab-players" class="tab-panel active"><div id="playersList" class="players-list"></div></div><div id="tab-chat" class="tab-panel"><div id="chatList" class="chat-list"></div><div class="chat-send"><input id="chatInput" placeholder="Tulis chat..." /><button id="sendChatBtn" class="btn primary small">Kirim</button></div></div><div id="tab-log" class="tab-panel"><div id="logList" class="log-list"></div></div><div id="tab-power" class="tab-panel"><div id="powerList" class="power-list"></div></div></aside>
+        </div>
+        <section class="hand-panel glass"><div class="hand-heading"><div><p class="eyebrow">Kartu Kamu</p><h2 id="myNameText">Player</h2></div><p id="handHint" class="hint">Pilih kartu saat giliranmu.</p></div><div id="handCards" class="hand-cards"></div></section>
+      </section>
+
+      <section id="page-profile" class="page"><div id="profilePage" class="profile-page"></div></section>
+      <section id="page-shop" class="page"><div class="page-head"><div><p class="eyebrow">Shop</p><h2>Beli Skin & Power</h2></div><span id="shopPoints" class="pill">0 pts</span></div><div id="shopList" class="card-grid"></div></section>
+      <section id="page-inventory" class="page"><div class="page-head"><div><p class="eyebrow">Inventory</p><h2>Item Kamu</h2></div></div><div id="inventoryList" class="card-grid"></div></section>
+      <section id="page-crates" class="page"><div class="page-head"><div><p class="eyebrow">Crates</p><h2>Open Crate</h2></div></div><div id="crateList" class="card-grid"></div><div id="crateAnimation" class="crate-animation hidden"><div class="crate-rail" id="crateRail"></div><div class="crate-marker"></div><div id="crateReward" class="crate-reward"></div></div></section>
+      <section id="page-friends" class="page"><div class="two-col"><div class="panel glass"><h2>Tambah Teman</h2><input id="friendSearch" placeholder="username teman" /><button id="friendSearchBtn" class="btn secondary full">Cari</button><div id="friendResults"></div></div><div class="panel glass"><h2>Friends & Invites</h2><div id="friendsPanel"></div></div></div></section>
+      <section id="page-leaderboard" class="page"><div class="page-head"><div><p class="eyebrow">Top 100</p><h2>Leaderboard</h2></div><button id="refreshLeaderboardBtn" class="btn secondary small">Refresh</button></div><div id="leaderboardList" class="leaderboard"></div></section>
+      <section id="page-guide" class="page"><div class="panel glass guide"><p class="eyebrow">Panduan</p><h2>Cara Main & Fitur</h2><ol><li>Login atau daftar dengan username + PIN.</li><li>Buat room atau join dari Public Lobby.</li><li>Host klik Mulai Game saat pemain minimal 2.</li><li>Samakan warna, angka, atau simbol. Wild bebas pilih warna.</li><li>Tekan UNO saat kartu tinggal 1. Pemain lain bisa Challenge kalau lupa.</li><li>Shop untuk beli skin/power. Power bersifat sekali pakai dan stok akan berkurang saat digunakan.</li><li>Crates memberi reward acak. Inventory untuk equip skin, frame, badge, dan tema.</li><li>Friends untuk add teman dan invite ke lobby.</li><li>Host bisa cari lagu YouTube di tombol musik melayang, lalu Play Room agar didengar bersama.</li><li>Join Voice untuk ngobrol; daftar pemain voice akan terlihat.</li></ol></div></section>
+    </section>
+  </main>
+
+  <div id="colorModal" class="modal hidden"><div class="modal-card glass"><h2>Pilih Warna</h2><p class="hint">Kartu bebas membutuhkan warna berikutnya.</p><div class="color-options"><button data-color="red" class="color-btn red">Merah</button><button data-color="yellow" class="color-btn yellow">Kuning</button><button data-color="green" class="color-btn green">Hijau</button><button data-color="blue" class="color-btn blue">Biru</button></div><button id="cancelColorBtn" class="btn ghost full">Batal</button></div></div>
+
+  <div id="musicFab" class="music-fab">♪</div><div id="musicPanel" class="music-panel glass hidden"><div class="music-head"><strong>Room Music</strong><button id="musicClose" class="icon-btn">×</button></div><input id="musicSearch" placeholder="Cari lagu YouTube..." /><button id="musicSearchBtn" class="btn secondary full">Cari Lagu</button><div id="musicResults" class="music-results"></div><div class="music-controls"><button id="musicActivate" class="btn primary small">Aktifkan HP</button><button id="musicPauseRoom" class="btn ghost small">Pause</button><button id="musicStopRoom" class="btn danger small">Stop</button></div><div id="ytPlayer" class="yt-player"></div><p id="musicNow" class="hint">Belum ada musik room.</p></div>
+  <div id="voiceWidget" class="voice-widget glass"><div class="voice-row"><button id="joinVoiceBtn" class="btn secondary small">Join Voice</button><button id="leaveVoiceBtn" class="btn ghost small">Leave</button></div><div id="voiceList" class="voice-list"></div></div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
