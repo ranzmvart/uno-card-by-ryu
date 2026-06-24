@@ -38,3 +38,10 @@ Jangan upload sebagai folder ganda.
 ## v1.3 Music Audio Fix
 
 Patch khusus: mengembalikan suara music player tanpa mengubah gameplay/fitur lain. YouTube player sekarang dipindahkan ke audio host kecil di luar panel yang bisa di-hide, sehingga suara tidak ikut mati ketika UI game/room dipoles. Volume user tetap lokal dan musik host tidak restart saat turn berganti.
+
+
+## v1.4 Room Music + Voice Fix
+- Memperbaiki tombol Room music host yang kadang tidak muncul/berfungsi setelah masuk room.
+- Memaksa sync musik host setelah Play Room agar tidak kosong.
+- Mengembalikan binding Join Voice/Leave Voice dan memperkuat koneksi WebRTC antar pemain.
+- Daftar voice dikirim ke seluruh room agar semua pemain tahu siapa yang sedang voice.

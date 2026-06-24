@@ -47,7 +47,7 @@ function init(){
 socket.on('connect',()=>{ setConnection(true); if(auth) resumeAuth(true); const s=load('uno_room',null); if(s?.roomCode&&auth&&!state){ reconnectRoom(s.roomCode,false); }});
 socket.on('disconnect',()=>setConnection(false));
 socket.on('toast',({message,type})=>toast(message,type));
-socket.on('state',(newState)=>{ prevState=state; state=newState; if(state?.code) save('uno_room',{roomCode:state.code}); showPage('game'); renderGame(); announce(); updateMusicModeUI(); if(state.music) receiveRoomMusic(state.music); });
+socket.on('state',(newState)=>{ prevState=state; state=newState; if(state?.code) save('uno_room',{roomCode:state.code}); showPage('game'); renderGame(); announce(); updateMusicModeUI(); if(state?.code) socket.emit('music:room-request',{roomCode:state.code}); if(state.music) receiveRoomMusic(state.music); });
 socket.on('rooms:list',({rooms})=>renderRoomList(rooms||[]));
 socket.on('music:room-state',(music)=>receiveRoomMusic(music));
 socket.on('voice:list',({participants})=>renderVoiceList(participants||[]));
@@ -230,16 +230,18 @@ function bindMusic(){
   el.musicSearchBtn.addEventListener('click',searchMusic);
   el.musicSearch.addEventListener('keydown',e=>{if(e.key==='Enter')searchMusic()});
   el.musicActivate.addEventListener('click',()=>{
+    userActivatedAudio = true;
     try{
       ensureYtHost();
       ytPlayer?.unMute?.();
       ytPlayer?.setVolume?.(musicVolume);
       ytPlayer?.playVideo?.();
+      if(musicMode==='host' && (pendingRoomMusic || currentMusic)) receiveRoomMusic(pendingRoomMusic || currentMusic, true);
       toast('Audio musik diaktifkan','success');
     }catch(e){ toast('Tekan play lagu dulu, lalu aktifkan audio.','error'); }
   });
-  el.musicPauseRoom.addEventListener('click',()=>socket.emit('music:room-pause',{...authPayload(),roomCode:state?.code,positionSec:getYtTime()},cbToast));
-  el.musicStopRoom.addEventListener('click',()=>socket.emit('music:room-stop',{...authPayload(),roomCode:state?.code},cbToast));
+  el.musicPauseRoom.addEventListener('click',()=>socket.emit('music:room-pause',{...authPayload(),roomCode:currentRoomCode(),positionSec:getYtTime()},cbToast));
+  el.musicStopRoom.addEventListener('click',()=>socket.emit('music:room-stop',{...authPayload(),roomCode:currentRoomCode()},cbToast));
   el.musicListenHost.addEventListener('click',()=>{ musicMode='host'; save('uno_music_mode',musicMode); updateMusicModeUI(); if(currentMusic) receiveRoomMusic(currentMusic,true); });
   el.musicPrivateMode.addEventListener('click',()=>{ musicMode='private'; save('uno_music_mode',musicMode); updateMusicModeUI(); toast('Mode streaming sendiri aktif. Musik host tidak akan mengganggu lagu kamu.','success'); });
   el.musicVolume.addEventListener('input',()=>setMusicVolume(Number(el.musicVolume.value),true));
@@ -250,7 +252,7 @@ async function searchMusic(){
   el.musicResults.innerHTML='<p class="hint">Mencari...</p>';
   const res=await fetch('/api/music/youtube?q='+encodeURIComponent(q)).then(r=>r.json()).catch(()=>({ok:false,error:'Gagal search'}));
   if(!res.ok)return el.musicResults.innerHTML=`<p class="hint">${esc(res.error)}</p>`;
-  const isHost=!!state?.me?.isHost;
+  const isHost=isHostNow();
   el.musicResults.innerHTML=res.results.map(s=>{
     const data=esc(JSON.stringify(s));
     return `<div class="music-item"><img src="${esc(s.thumbnail)}" alt="cover"><div><b>${esc(s.title)}</b><br><span class="hint">${esc(s.artist)} • ${esc(s.duration)}</span></div><div class="music-item-actions"><button class="btn secondary small" data-private-song='${data}'>Play</button>${isHost?`<button class="btn primary small" data-room-song='${data}'>Room</button>`:''}</div></div>`;
@@ -265,9 +267,10 @@ function playPrivateSong(song){
   el.musicNow.textContent=`Streaming sendiri: ${song.title}`;
   el.musicPanel.classList.remove('hidden');
 }
-function playRoomSong(song){ if(!state?.me?.isHost)return toast('Hanya host yang bisa play ke room','error'); socket.emit('music:room-play',{...authPayload(),roomCode:state.code,song,positionSec:0},(res)=>{ if(!res?.ok)return toast(res.error,'error'); musicMode='host'; save('uno_music_mode',musicMode); updateMusicModeUI(); toast('Musik room diputar','success'); }); }
+function playRoomSong(song){ const code=currentRoomCode(); if(!code)return toast('Masuk room dulu untuk play ke room','error'); if(!isHostNow())return toast('Hanya host yang bisa play ke room','error'); socket.emit('music:room-play',{...authPayload(),roomCode:code,song,positionSec:0},(res)=>{ if(!res?.ok)return toast(res.error,'error'); musicMode='host'; save('uno_music_mode',musicMode); updateMusicModeUI(); el.musicPanel.classList.remove('hidden'); if(res.music) receiveRoomMusic(res.music,true); toast('Musik room diputar','success'); }); }
 function receiveRoomMusic(music, force=false){
   currentMusic=music;
+  if(music?.song) pendingRoomMusic=music;
   const key=music?.song?`${music.status}:${music.song.videoId}:${music.startedAt||0}:${music.updatedAt||0}:${Math.floor(Number(music.positionSec||0))}`:'empty';
   const hasRoom=!!state?.code;
   if(!music?.song){
@@ -290,6 +293,7 @@ function receiveRoomMusic(music, force=false){
   } else if(music.status==='stopped'&&currentYtOwner==='room'&&ytPlayer) ytPlayer.stopVideo();
 }
 function syncRoomYoutube(music){
+  pendingRoomMusic=music;
   const pos=calcMusicPos(music);
   if(currentYtOwner==='room' && currentYtVideoId===music.song.videoId && ytPlayer){
     const actual=getYtTime();
@@ -362,7 +366,7 @@ function setMusicVolume(v,persist=true){
   try{ ytPlayer?.unMute?.(); ytPlayer?.setVolume?.(musicVolume); }catch{}
 }
 function updateMusicModeUI(){
-  const inRoom=!!state?.code;
+  const inRoom=!!currentRoomCode();
   el.musicListenHost?.classList.toggle('primary',musicMode==='host');
   el.musicListenHost?.classList.toggle('secondary',musicMode!=='host');
   el.musicPrivateMode?.classList.toggle('primary',musicMode==='private');
@@ -371,16 +375,102 @@ function updateMusicModeUI(){
   if(el.musicPauseRoom) el.musicPauseRoom.style.display=state?.me?.isHost?'inline-flex':'none';
   if(el.musicStopRoom) el.musicStopRoom.style.display=state?.me?.isHost?'inline-flex':'none';
 }
+function currentRoomCode(){ return state?.code || load('uno_room',null)?.roomCode || ''; }
+function isHostNow(){ return !!(state?.me?.isHost || (profile?.id && state?.hostAccountId===profile.id)); }
 function getYtTime(){ try{return ytPlayer?.getCurrentTime?.()||0}catch{return 0} }
 function makeDraggable(node){ node.addEventListener('pointerdown',e=>{ if(e.button!==0)return; draggingMusic=true; dragOffset={x:e.clientX-node.offsetLeft,y:e.clientY-node.offsetTop};node.setPointerCapture(e.pointerId); node.classList.add('dragging'); }); node.addEventListener('pointermove',e=>{ if(!draggingMusic)return; node.style.left=Math.max(8,Math.min(innerWidth-66,e.clientX-dragOffset.x))+'px'; node.style.top=Math.max(8,Math.min(innerHeight-66,e.clientY-dragOffset.y))+'px'; node.style.right='auto'; node.style.bottom='auto'; }); node.addEventListener('pointerup',()=>{draggingMusic=false; node.classList.remove('dragging');}); node.addEventListener('pointercancel',()=>{draggingMusic=false; node.classList.remove('dragging');}); }
 
-async function joinVoice(){ if(!state?.code)return toast('Masuk room dulu','error'); try{ localStream=await navigator.mediaDevices.getUserMedia({audio:true}); voiceActive=true; socket.emit('voice:join',{...authPayload(),roomCode:state.code},async(res)=>{ if(!res?.ok)return toast(res.error,'error'); for(const peer of res.peers||[]) await createOffer(peer.playerId); }); toast('Voice aktif','success'); }catch(e){toast('Voice gagal: '+e.message,'error')} }
-function leaveVoice(){ voiceActive=false; for(const id of [...peers.keys()])closePeer(id); localStream?.getTracks().forEach(t=>t.stop()); localStream=null; socket.emit('voice:leave',{...authPayload(),roomCode:state?.code}); }
-function renderVoiceList(list){ el.voiceList.innerHTML=list.map(p=>`<span class="voice-pill">● ${esc(p.name)}${p.playerId===state?.me?.id?' (Kamu)':''}</span>`).join('')||'<span class="hint">Voice kosong</span>'; if(voiceActive){ for(const p of list){ if(p.playerId!==state?.me?.id&&!peers.has(p.playerId)) createOffer(p.playerId); } } }
-async function getPeer(id){ if(peers.has(id))return peers.get(id); const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]}); peers.set(id,pc); localStream?.getTracks().forEach(t=>pc.addTrack(t,localStream)); pc.onicecandidate=e=>{ if(e.candidate)socket.emit('voice:signal',{roomCode:state.code,toPlayerId:id,data:{candidate:e.candidate}}); }; pc.ontrack=e=>{ let a=document.querySelector(`audio[data-peer="${id}"]`); if(!a){a=document.createElement('audio');a.autoplay=true;a.dataset.peer=id;document.body.appendChild(a)} a.srcObject=e.streams[0]; }; return pc; }
-async function createOffer(id){ const pc=await getPeer(id); const offer=await pc.createOffer(); await pc.setLocalDescription(offer); socket.emit('voice:signal',{roomCode:state.code,toPlayerId:id,data:{sdp:pc.localDescription}}); }
-async function handleVoiceSignal(from,data){ if(!from||!voiceActive)return; const pc=await getPeer(from); if(data.sdp){ await pc.setRemoteDescription(new RTCSessionDescription(data.sdp)); if(data.sdp.type==='offer'){ const ans=await pc.createAnswer(); await pc.setLocalDescription(ans); socket.emit('voice:signal',{roomCode:state.code,toPlayerId:from,data:{sdp:pc.localDescription}}); } } if(data.candidate) await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(()=>{}); }
+function bindVoice(){
+  el.joinVoiceBtn?.addEventListener('click',joinVoice);
+  el.leaveVoiceBtn?.addEventListener('click',leaveVoice);
+}
+function shouldOfferTo(playerId){
+  const me=state?.me?.id || '';
+  return !!me && String(me) < String(playerId);
+}
+async function joinVoice(){
+  if(!currentRoomCode())return toast('Masuk room dulu','error');
+  try{
+    if(!navigator.mediaDevices?.getUserMedia) throw new Error('Browser tidak mendukung voice.');
+    if(voiceActive) leaveVoice(false);
+    localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    voiceActive=true;
+    socket.emit('voice:join',{...authPayload(),roomCode:currentRoomCode()},async(res)=>{
+      if(!res?.ok){ voiceActive=false; return toast(res.error,'error'); }
+      renderVoiceList(res.participants||res.peers||[]);
+      for(const peer of res.peers||[]){ if(peer.playerId!==state?.me?.id && shouldOfferTo(peer.playerId)) await createOffer(peer.playerId); }
+    });
+    toast('Voice aktif','success');
+  }catch(e){ toast('Voice gagal: '+e.message,'error') }
+}
+function leaveVoice(notify=true){
+  voiceActive=false;
+  for(const id of [...peers.keys()])closePeer(id);
+  localStream?.getTracks().forEach(t=>t.stop());
+  localStream=null;
+  if(notify) socket.emit('voice:leave',{...authPayload(),roomCode:currentRoomCode()});
+}
+function renderVoiceList(list){
+  el.voiceList.innerHTML=(list||[]).map(p=>`<span class="voice-pill">● ${esc(p.name)}${p.playerId===state?.me?.id?' (Kamu)':''}</span>`).join('')||'<span class="hint">Voice kosong</span>';
+  if(voiceActive){
+    for(const p of list||[]){
+      if(p.playerId!==state?.me?.id && !peers.has(p.playerId) && shouldOfferTo(p.playerId)) createOffer(p.playerId);
+    }
+  }
+}
+async function getPeer(id){
+  if(peers.has(id))return peers.get(id);
+  const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
+  peers.set(id,pc);
+  localStream?.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  pc.onicecandidate=e=>{ if(e.candidate)socket.emit('voice:signal',{...authPayload(),roomCode:currentRoomCode(),toPlayerId:id,data:{candidate:e.candidate}}); };
+  pc.onconnectionstatechange=()=>{ if(['failed','disconnected','closed'].includes(pc.connectionState)){ setTimeout(()=>{ if(pc.connectionState!=='connected') closePeer(id); },2500); } };
+  pc.ontrack=e=>{
+    let a=document.querySelector(`audio[data-peer="${id}"]`);
+    if(!a){
+      a=document.createElement('audio');
+      a.autoplay=true;
+      a.playsInline=true;
+      a.muted=false;
+      a.dataset.peer=id;
+      document.body.appendChild(a);
+    }
+    a.srcObject=e.streams[0];
+    a.volume=1;
+    a.play?.().catch(()=>{});
+  };
+  return pc;
+}
+async function createOffer(id){
+  if(!voiceActive || peers.has(id)) return;
+  const pc=await getPeer(id);
+  const offer=await pc.createOffer({offerToReceiveAudio:true});
+  await pc.setLocalDescription(offer);
+  socket.emit('voice:signal',{...authPayload(),roomCode:currentRoomCode(),toPlayerId:id,data:{sdp:pc.localDescription}});
+}
+async function handleVoiceSignal(from,data){
+  if(!from||!voiceActive)return;
+  const pc=await getPeer(from);
+  try{
+    if(data.sdp){
+      const desc=new RTCSessionDescription(data.sdp);
+      if(desc.type==='offer'){
+        if(pc.signalingState!=='stable'){
+          await pc.setLocalDescription({type:'rollback'}).catch(()=>{});
+        }
+        await pc.setRemoteDescription(desc);
+        const ans=await pc.createAnswer();
+        await pc.setLocalDescription(ans);
+        socket.emit('voice:signal',{...authPayload(),roomCode:currentRoomCode(),toPlayerId:from,data:{sdp:pc.localDescription}});
+      }else if(desc.type==='answer'){
+        if(pc.signalingState!=='stable') await pc.setRemoteDescription(desc);
+      }
+    }
+    if(data.candidate) await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(()=>{});
+  }catch(e){ console.warn('voice signal error',e); }
+}
 function closePeer(id){ const pc=peers.get(id); if(pc)pc.close(); peers.delete(id); document.querySelector(`audio[data-peer="${id}"]`)?.remove(); }
+
 
 function setConnection(ok){ el.connectionBadge.textContent=ok?'Online':'Offline'; el.connectionBadge.className=`badge ${ok?'ok':'bad'}`; }
 function toast(msg,type='info'){ if(!msg)return; const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;el.toastStack.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(20px)';setTimeout(()=>t.remove(),250)},3500); }
