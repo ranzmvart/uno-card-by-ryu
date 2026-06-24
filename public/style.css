@@ -101,3 +101,11 @@ body.in-room .tab{white-space:nowrap;min-height:38px}
   body.in-room .game-actions{grid-template-columns:1fr 1fr}.game-actions .badge{grid-column:1/-1}
   body.in-room .tabs{grid-template-columns:repeat(2,1fr)}
 }
+
+
+/* v1.3 music audio fix: YouTube iframe is kept outside hidden panel so audio does not stop or disappear. */
+.yt-audio-host{position:fixed;left:8px;bottom:8px;width:220px;height:124px;opacity:.015;pointer-events:none;z-index:1;overflow:hidden;border-radius:12px}
+.yt-audio-host iframe,.yt-player{width:220px!important;height:124px!important;min-width:220px!important;min-height:124px!important;border:0!important}
+body.in-room .yt-audio-host{left:8px;bottom:8px}
+.music-panel .yt-player{display:none!important}
+@media(max-width:540px){.yt-audio-host{width:200px;height:113px}.yt-audio-host iframe,.yt-player{width:200px!important;height:113px!important;min-width:200px!important;min-height:113px!important}}

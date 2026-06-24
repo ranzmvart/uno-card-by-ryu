@@ -229,7 +229,15 @@ function bindMusic(){
   el.musicClose.addEventListener('click',()=>el.musicPanel.classList.add('hidden'));
   el.musicSearchBtn.addEventListener('click',searchMusic);
   el.musicSearch.addEventListener('keydown',e=>{if(e.key==='Enter')searchMusic()});
-  el.musicActivate.addEventListener('click',()=>{ try{ ytPlayer?.setVolume?.(musicVolume); ytPlayer?.playVideo?.(); toast('Audio diaktifkan','success'); }catch{} });
+  el.musicActivate.addEventListener('click',()=>{
+    try{
+      ensureYtHost();
+      ytPlayer?.unMute?.();
+      ytPlayer?.setVolume?.(musicVolume);
+      ytPlayer?.playVideo?.();
+      toast('Audio musik diaktifkan','success');
+    }catch(e){ toast('Tekan play lagu dulu, lalu aktifkan audio.','error'); }
+  });
   el.musicPauseRoom.addEventListener('click',()=>socket.emit('music:room-pause',{...authPayload(),roomCode:state?.code,positionSec:getYtTime()},cbToast));
   el.musicStopRoom.addEventListener('click',()=>socket.emit('music:room-stop',{...authPayload(),roomCode:state?.code},cbToast));
   el.musicListenHost.addEventListener('click',()=>{ musicMode='host'; save('uno_music_mode',musicMode); updateMusicModeUI(); if(currentMusic) receiveRoomMusic(currentMusic,true); });
@@ -247,15 +255,15 @@ async function searchMusic(){
     const data=esc(JSON.stringify(s));
     return `<div class="music-item"><img src="${esc(s.thumbnail)}" alt="cover"><div><b>${esc(s.title)}</b><br><span class="hint">${esc(s.artist)} • ${esc(s.duration)}</span></div><div class="music-item-actions"><button class="btn secondary small" data-private-song='${data}'>Play</button>${isHost?`<button class="btn primary small" data-room-song='${data}'>Room</button>`:''}</div></div>`;
   }).join('')||'<p class="hint">Tidak ada hasil.</p>';
-  $$('[data-private-song]').forEach(b=>b.onclick=()=>{ const song=JSON.parse(b.dataset.privateSong); playPrivateSong(song); });
-  $$('[data-room-song]').forEach(b=>b.onclick=()=>{ const song=JSON.parse(b.dataset.roomSong); playRoomSong(song); });
+  $$('[data-private-song]').forEach(b=>b.onclick=()=>playPrivateSong(JSON.parse(b.dataset.privateSong)));
+  $$('[data-room-song]').forEach(b=>b.onclick=()=>playRoomSong(JSON.parse(b.dataset.roomSong)));
 }
 function playPrivateSong(song){
   musicMode='private'; save('uno_music_mode',musicMode); updateMusicModeUI();
   currentMusic = currentMusic || null;
   playYoutube(song,0,'private',true);
   el.musicNow.textContent=`Streaming sendiri: ${song.title}`;
-  toast('Lagu pribadi diputar','success');
+  el.musicPanel.classList.remove('hidden');
 }
 function playRoomSong(song){ if(!state?.me?.isHost)return toast('Hanya host yang bisa play ke room','error'); socket.emit('music:room-play',{...authPayload(),roomCode:state.code,song,positionSec:0},(res)=>{ if(!res?.ok)return toast(res.error,'error'); musicMode='host'; save('uno_music_mode',musicMode); updateMusicModeUI(); toast('Musik room diputar','success'); }); }
 function receiveRoomMusic(music, force=false){
@@ -278,7 +286,7 @@ function receiveRoomMusic(music, force=false){
   if(music.status==='playing') syncRoomYoutube(music);
   else if(music.status==='paused'){
     if(currentYtOwner!=='room'||currentYtVideoId!==music.song.videoId) playYoutube(music.song,music.positionSec||0,'room',false);
-    setTimeout(()=>{ try{ ytPlayer?.seekTo?.(Number(music.positionSec||0),true); ytPlayer?.pauseVideo?.(); }catch{} },250);
+    setTimeout(()=>{ try{ ytPlayer?.seekTo?.(Number(music.positionSec||0),true); ytPlayer?.pauseVideo?.(); }catch{} },350);
   } else if(music.status==='stopped'&&currentYtOwner==='room'&&ytPlayer) ytPlayer.stopVideo();
 }
 function syncRoomYoutube(music){
@@ -286,22 +294,64 @@ function syncRoomYoutube(music){
   if(currentYtOwner==='room' && currentYtVideoId===music.song.videoId && ytPlayer){
     const actual=getYtTime();
     if(Math.abs(actual-pos)>5) { try{ ytPlayer.seekTo(pos,true); }catch{} }
-    try{ ytPlayer.setVolume(musicVolume); ytPlayer.playVideo(); }catch{}
+    try{ ytPlayer.unMute?.(); ytPlayer.setVolume(musicVolume); ytPlayer.playVideo(); }catch{}
     return;
   }
   playYoutube(music.song,pos,'room',true);
 }
 function calcMusicPos(music){ if(music.status!=='playing')return music.positionSec||0; return Math.max(0,Number(music.positionSec||0)+(Date.now()-Number(music.startedAt||Date.now()))/1000); }
+function ensureYtHost(){
+  let host=document.getElementById('ytAudioHost');
+  if(!host){
+    host=document.createElement('div');
+    host.id='ytAudioHost';
+    host.className='yt-audio-host';
+    host.setAttribute('aria-hidden','true');
+    document.body.appendChild(host);
+  }
+  let holder=document.getElementById('ytPlayer');
+  if(!holder){
+    holder=document.createElement('div');
+    holder.id='ytPlayer';
+    holder.className='yt-player';
+    host.appendChild(holder);
+  } else if(holder.parentElement!==host){
+    host.appendChild(holder);
+  }
+}
 function playYoutube(song,start=0,owner='private',autoplay=true){
-  if(!ytReady||!song?.videoId){setTimeout(()=>playYoutube(song,start,owner,autoplay),500);return;}
+  ensureYtHost();
+  if(!window.YT || !YT.Player || !song?.videoId){setTimeout(()=>playYoutube(song,start,owner,autoplay),500);return;}
   currentYtVideoId=song.videoId; currentYtOwner=owner;
-  const startAt=Math.max(0,Math.floor(start||0));
-  if(!ytPlayer){
-    ytPlayer=new YT.Player('ytPlayer',{height:'1',width:'1',videoId:song.videoId,playerVars:{autoplay:autoplay?1:0,playsinline:1,start:startAt,origin:location.origin},events:{onReady:e=>{ try{e.target.setVolume(musicVolume); if(autoplay)e.target.playVideo();}catch{} }}});
+  const startAt=Math.max(0,Math.floor(Number(start)||0));
+  const applyAudio=()=>{
+    try{
+      ytPlayer.unMute?.();
+      ytPlayer.setVolume?.(musicVolume);
+      if(autoplay) ytPlayer.playVideo?.();
+    }catch{}
+  };
+  if(!ytPlayer || typeof ytPlayer.loadVideoById !== 'function'){
+    document.getElementById('ytPlayer').innerHTML='';
+    ytPlayer=new YT.Player('ytPlayer',{
+      height:'124',width:'220',videoId:song.videoId,
+      playerVars:{autoplay:autoplay?1:0,playsinline:1,start:startAt,origin:location.origin,enablejsapi:1,rel:0,controls:0,disablekb:1,modestbranding:1},
+      events:{
+        onReady:e=>{ try{e.target.unMute(); e.target.setVolume(musicVolume); if(autoplay)e.target.playVideo();}catch{} },
+        onStateChange:()=>setTimeout(applyAudio,120),
+        onError:()=>toast('Lagu ini tidak bisa diputar sebagai embed. Coba pilih hasil lain.','error')
+      }
+    });
   } else {
-    try{ ytPlayer.setVolume(musicVolume); }catch{}
-    if(ytPlayer.getVideoData?.().video_id===song.videoId){ try{ ytPlayer.seekTo(startAt,true); if(autoplay)ytPlayer.playVideo(); }catch{} }
-    else ytPlayer.loadVideoById({videoId:song.videoId,startSeconds:startAt});
+    try{
+      ytPlayer.unMute?.();
+      ytPlayer.setVolume?.(musicVolume);
+      const data=ytPlayer.getVideoData?.();
+      if(data?.video_id===song.videoId){ ytPlayer.seekTo(startAt,true); if(autoplay) ytPlayer.playVideo(); }
+      else ytPlayer.loadVideoById({videoId:song.videoId,startSeconds:startAt});
+      setTimeout(applyAudio,180);
+      setTimeout(applyAudio,650);
+    }catch{}
   }
 }
 function setMusicVolume(v,persist=true){
@@ -309,7 +359,7 @@ function setMusicVolume(v,persist=true){
   if(el.musicVolume) el.musicVolume.value=musicVolume;
   if(el.musicVolumeText) el.musicVolumeText.textContent=`${musicVolume}%`;
   if(persist) save('uno_music_volume',musicVolume);
-  try{ ytPlayer?.setVolume?.(musicVolume); }catch{}
+  try{ ytPlayer?.unMute?.(); ytPlayer?.setVolume?.(musicVolume); }catch{}
 }
 function updateMusicModeUI(){
   const inRoom=!!state?.code;
@@ -324,7 +374,6 @@ function updateMusicModeUI(){
 function getYtTime(){ try{return ytPlayer?.getCurrentTime?.()||0}catch{return 0} }
 function makeDraggable(node){ node.addEventListener('pointerdown',e=>{ if(e.button!==0)return; draggingMusic=true; dragOffset={x:e.clientX-node.offsetLeft,y:e.clientY-node.offsetTop};node.setPointerCapture(e.pointerId); node.classList.add('dragging'); }); node.addEventListener('pointermove',e=>{ if(!draggingMusic)return; node.style.left=Math.max(8,Math.min(innerWidth-66,e.clientX-dragOffset.x))+'px'; node.style.top=Math.max(8,Math.min(innerHeight-66,e.clientY-dragOffset.y))+'px'; node.style.right='auto'; node.style.bottom='auto'; }); node.addEventListener('pointerup',()=>{draggingMusic=false; node.classList.remove('dragging');}); node.addEventListener('pointercancel',()=>{draggingMusic=false; node.classList.remove('dragging');}); }
 
-function bindVoice(){ el.joinVoiceBtn.addEventListener('click',joinVoice); el.leaveVoiceBtn.addEventListener('click',leaveVoice); }
 async function joinVoice(){ if(!state?.code)return toast('Masuk room dulu','error'); try{ localStream=await navigator.mediaDevices.getUserMedia({audio:true}); voiceActive=true; socket.emit('voice:join',{...authPayload(),roomCode:state.code},async(res)=>{ if(!res?.ok)return toast(res.error,'error'); for(const peer of res.peers||[]) await createOffer(peer.playerId); }); toast('Voice aktif','success'); }catch(e){toast('Voice gagal: '+e.message,'error')} }
 function leaveVoice(){ voiceActive=false; for(const id of [...peers.keys()])closePeer(id); localStream?.getTracks().forEach(t=>t.stop()); localStream=null; socket.emit('voice:leave',{...authPayload(),roomCode:state?.code}); }
 function renderVoiceList(list){ el.voiceList.innerHTML=list.map(p=>`<span class="voice-pill">● ${esc(p.name)}${p.playerId===state?.me?.id?' (Kamu)':''}</span>`).join('')||'<span class="hint">Voice kosong</span>'; if(voiceActive){ for(const p of list){ if(p.playerId!==state?.me?.id&&!peers.has(p.playerId)) createOffer(p.playerId); } } }

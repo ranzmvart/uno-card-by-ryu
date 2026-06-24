@@ -33,3 +33,8 @@ repo/
 ```
 
 Jangan upload sebagai folder ganda.
+
+
+## v1.3 Music Audio Fix
+
+Patch khusus: mengembalikan suara music player tanpa mengubah gameplay/fitur lain. YouTube player sekarang dipindahkan ke audio host kecil di luar panel yang bisa di-hide, sehingga suara tidak ikut mati ketika UI game/room dipoles. Volume user tetap lokal dan musik host tidak restart saat turn berganti.
