@@ -9,7 +9,7 @@ const el = {
   roomCodeText:$('roomCodeText'), roomNameText:$('roomNameText'), connectionBadge:$('connectionBadge'), copyRoomBtn:$('copyRoomBtn'), leaveRoomBtn:$('leaveRoomBtn'), lobbyPanel:$('lobbyPanel'), lobbyPlayers:$('lobbyPlayers'), startGameBtn:$('startGameBtn'),
   boardPanel:$('boardPanel'), statusText:$('statusText'), turnAdvice:$('turnAdvice'), turnTimer:$('turnTimer'), deckCount:$('deckCount'), discardCard:$('discardCard'), currentColor:$('currentColor'), drawBtn:$('drawBtn'), passBtn:$('passBtn'), unoBtn:$('unoBtn'), restartBtn:$('restartBtn'), backLobbyBtn:$('backLobbyBtn'), playersList:$('playersList'), logList:$('logList'), chatList:$('chatList'), chatInput:$('chatInput'), sendChatBtn:$('sendChatBtn'), powerList:$('powerList'), handCards:$('handCards'), handHint:$('handHint'), myNameText:$('myNameText'),
   colorModal:$('colorModal'), cancelColorBtn:$('cancelColorBtn'), profilePage:$('profilePage'), shopList:$('shopList'), shopPoints:$('shopPoints'), inventoryList:$('inventoryList'), crateList:$('crateList'), crateAnimation:$('crateAnimation'), crateRail:$('crateRail'), crateReward:$('crateReward'), friendSearch:$('friendSearch'), friendSearchBtn:$('friendSearchBtn'), friendResults:$('friendResults'), friendsPanel:$('friendsPanel'), leaderboardList:$('leaderboardList'), refreshLeaderboardBtn:$('refreshLeaderboardBtn'),
-  musicFab:$('musicFab'), musicPanel:$('musicPanel'), musicClose:$('musicClose'), musicSearch:$('musicSearch'), musicSearchBtn:$('musicSearchBtn'), musicResults:$('musicResults'), musicActivate:$('musicActivate'), musicPauseRoom:$('musicPauseRoom'), musicStopRoom:$('musicStopRoom'), musicNow:$('musicNow'), ytPlayer:$('ytPlayer'),
+  musicFab:$('musicFab'), musicPanel:$('musicPanel'), musicClose:$('musicClose'), musicListenHost:$('musicListenHost'), musicPrivateMode:$('musicPrivateMode'), musicModeHint:$('musicModeHint'), musicVolume:$('musicVolume'), musicVolumeText:$('musicVolumeText'), musicSearch:$('musicSearch'), musicSearchBtn:$('musicSearchBtn'), musicResults:$('musicResults'), musicActivate:$('musicActivate'), musicPauseRoom:$('musicPauseRoom'), musicStopRoom:$('musicStopRoom'), musicNow:$('musicNow'), ytPlayer:$('ytPlayer'),
   joinVoiceBtn:$('joinVoiceBtn'), leaveVoiceBtn:$('leaveVoiceBtn'), voiceList:$('voiceList'), cinematic:$('cinematic'), cineIcon:$('cineIcon'), cineTitle:$('cineTitle'), cineText:$('cineText')
 };
 
@@ -25,6 +25,11 @@ let localStream = null;
 const peers = new Map();
 let voiceActive = false;
 let currentMusic = null;
+let currentYtVideoId = null;
+let currentYtOwner = null;
+let lastRoomMusicKey = '';
+let musicMode = load('uno_music_mode','host');
+let musicVolume = Number(load('uno_music_volume',70));
 let draggingMusic = false;
 let dragOffset = { x:0, y:0 };
 
@@ -42,7 +47,7 @@ function init(){
 socket.on('connect',()=>{ setConnection(true); if(auth) resumeAuth(true); const s=load('uno_room',null); if(s?.roomCode&&auth&&!state){ reconnectRoom(s.roomCode,false); }});
 socket.on('disconnect',()=>setConnection(false));
 socket.on('toast',({message,type})=>toast(message,type));
-socket.on('state',(newState)=>{ prevState=state; state=newState; if(state?.code) save('uno_room',{roomCode:state.code}); showPage('game'); renderGame(); announce(); if(state.music) receiveRoomMusic(state.music); });
+socket.on('state',(newState)=>{ prevState=state; state=newState; if(state?.code) save('uno_room',{roomCode:state.code}); showPage('game'); renderGame(); announce(); updateMusicModeUI(); if(state.music) receiveRoomMusic(state.music); });
 socket.on('rooms:list',({rooms})=>renderRoomList(rooms||[]));
 socket.on('music:room-state',(music)=>receiveRoomMusic(music));
 socket.on('voice:list',({participants})=>renderVoiceList(participants||[]));
@@ -99,7 +104,7 @@ function renderGame(){ if(!state)return; const me=state.me||{}; const isLobby=st
   else if(isFinished){ el.statusText.textContent=winner?`${winner.name} menang!`:'Game selesai'; el.turnAdvice.textContent=state.autoResetAt?'Room akan reset otomatis.':'Tunggu host.'; el.handHint.textContent='Ronde selesai.'; }
   else if(myTurn){ el.statusText.textContent='Giliran Kamu'; el.turnAdvice.textContent=state.myTurnState?.hasDrawn?'Mainkan kartu baru atau Pass.':'Pilih kartu menyala atau ambil kartu.'; el.handHint.textContent='Kartu playable akan menyala.'; }
   else { el.statusText.textContent=`Giliran ${turn?.name||'pemain lain'}`; el.turnAdvice.textContent='Tunggu giliranmu.'; el.handHint.textContent='Siapkan strategi.'; }
-  el.deckCount.textContent=`Deck: ${state.deckCount}`; el.currentColor.textContent=`Warna aktif: ${colorName(state.currentColor)}`; renderCard(el.discardCard,state.discardTop,true); renderLobbyPlayers(); renderPlayers(); renderLogs(); renderChat(); renderPowerList(); renderHand(); setupTimer(); if(state.music) receiveRoomMusic(state.music);
+  el.deckCount.textContent=`Deck: ${state.deckCount}`; el.currentColor.textContent=`Warna aktif: ${colorName(state.currentColor)}`; renderCard(el.discardCard,state.discardTop,true); renderLobbyPlayers(); renderPlayers(); renderLogs(); renderChat(); renderPowerList(); renderHand(); setupTimer(); updateMusicModeUI(); if(state.music) receiveRoomMusic(state.music);
 }
 function renderLobbyPlayers(){ el.lobbyPlayers.innerHTML=(state.players||[]).map(p=>`<div class="player-card"><div class="player-main">${avatarHTML(p,'avatar')}<div><div class="player-name">${esc(p.name)}</div><div class="player-meta">${p.isHost?'Host':'Player'} • ${p.connected?'Online':'Offline'} • ${p.cardCount||0} kartu</div></div></div></div>`).join(''); }
 function renderPlayers(){ el.playersList.innerHTML=(state.players||[]).map(p=>{ const challenge=canChallenge(p)?`<button data-challenge="${p.id}" class="btn warning small">Challenge UNO</button>`:''; return `<div class="player-card ${p.id===state.currentPlayerId?'turn-player':''} ${p.id===state.me?.id?'me-player':''}"><div class="player-main">${avatarHTML(p,'avatar')}<div><div class="player-name">${esc(p.name)}</div><div class="player-meta">${p.isHost?'Host':'Player'} • ${p.cardCount} kartu • ${p.connected?'Online':'Offline'} ${p.saidUno?'• UNO':''}</div></div></div>${challenge}</div>`}).join(''); $$('[data-challenge]').forEach(b=>b.addEventListener('click',()=>socket.emit('challengeUno',{...authPayload(),roomCode:state.code,targetId:b.dataset.challenge},cbToast))); }
@@ -135,14 +140,107 @@ const profileIndex={};
 function refreshLeaderboard(){ socket.emit('leaderboard:get',{},(res)=>{ const list=res?.leaderboard||[]; list.forEach(p=>profileIndex[p.id]=p); el.leaderboardList.innerHTML=list.map((p,i)=>`<div class="leader-row"><b>#${i+1}</b><div class="player-main">${avatarHTML(p,'avatar')}<span>${esc(p.displayName)}</span></div><span>${p.stats.wins} win</span><span>${fmtPoints(p.points)} pts</span></div>`).join('')||'<div class="panel glass">Belum ada data.</div>'; }); }
 el.refreshLeaderboardBtn.addEventListener('click',refreshLeaderboard);
 
-function bindMusic(){ el.musicFab.addEventListener('click',()=>el.musicPanel.classList.toggle('hidden')); el.musicClose.addEventListener('click',()=>el.musicPanel.classList.add('hidden')); el.musicSearchBtn.addEventListener('click',searchMusic); el.musicSearch.addEventListener('keydown',e=>{if(e.key==='Enter')searchMusic()}); el.musicActivate.addEventListener('click',()=>{ if(ytPlayer&&currentMusic?.song) ytPlayer.playVideo(); }); el.musicPauseRoom.addEventListener('click',()=>socket.emit('music:room-pause',{...authPayload(),roomCode:state?.code,positionSec:getYtTime()},cbToast)); el.musicStopRoom.addEventListener('click',()=>socket.emit('music:room-stop',{...authPayload(),roomCode:state?.code},cbToast)); makeDraggable(el.musicFab); }
-async function searchMusic(){ const q=el.musicSearch.value.trim(); if(!q)return; el.musicResults.innerHTML='<p class="hint">Mencari...</p>'; const res=await fetch('/api/music/youtube?q='+encodeURIComponent(q)).then(r=>r.json()).catch(()=>({ok:false,error:'Gagal search'})); if(!res.ok)return el.musicResults.innerHTML=`<p class="hint">${esc(res.error)}</p>`; el.musicResults.innerHTML=res.results.map(s=>`<div class="music-item"><img src="${esc(s.thumbnail)}"><div><b>${esc(s.title)}</b><br><span class="hint">${esc(s.artist)} • ${esc(s.duration)}</span></div><button class="btn primary small" data-room-song='${esc(JSON.stringify(s))}'>Room</button></div>`).join('')||'<p class="hint">Tidak ada hasil.</p>'; $$('[data-room-song]').forEach(b=>b.onclick=()=>{ const song=JSON.parse(b.dataset.roomSong); playRoomSong(song); }); }
-function playRoomSong(song){ if(!state?.me?.isHost)return toast('Hanya host yang bisa play ke room','error'); socket.emit('music:room-play',{...authPayload(),roomCode:state.code,song},(res)=>{ if(!res?.ok)return toast(res.error,'error'); toast('Musik room diputar','success'); }); }
-function receiveRoomMusic(music){ currentMusic=music; if(!music?.song){ el.musicNow.textContent='Belum ada musik room.'; return; } el.musicNow.textContent=`${music.status}: ${music.song.title} — ${music.by||'Host'}`; if(music.status==='playing') playYoutube(music.song,calcMusicPos(music)); else if(music.status==='paused'&&ytPlayer) ytPlayer.pauseVideo(); else if(music.status==='stopped'&&ytPlayer) ytPlayer.stopVideo(); }
+function bindMusic(){
+  updateMusicModeUI();
+  setMusicVolume(musicVolume, false);
+  el.musicFab.addEventListener('click',()=>el.musicPanel.classList.toggle('hidden'));
+  el.musicClose.addEventListener('click',()=>el.musicPanel.classList.add('hidden'));
+  el.musicSearchBtn.addEventListener('click',searchMusic);
+  el.musicSearch.addEventListener('keydown',e=>{if(e.key==='Enter')searchMusic()});
+  el.musicActivate.addEventListener('click',()=>{ try{ ytPlayer?.setVolume?.(musicVolume); ytPlayer?.playVideo?.(); toast('Audio diaktifkan','success'); }catch{} });
+  el.musicPauseRoom.addEventListener('click',()=>socket.emit('music:room-pause',{...authPayload(),roomCode:state?.code,positionSec:getYtTime()},cbToast));
+  el.musicStopRoom.addEventListener('click',()=>socket.emit('music:room-stop',{...authPayload(),roomCode:state?.code},cbToast));
+  el.musicListenHost.addEventListener('click',()=>{ musicMode='host'; save('uno_music_mode',musicMode); updateMusicModeUI(); if(currentMusic) receiveRoomMusic(currentMusic,true); });
+  el.musicPrivateMode.addEventListener('click',()=>{ musicMode='private'; save('uno_music_mode',musicMode); updateMusicModeUI(); toast('Mode streaming sendiri aktif. Musik host tidak akan mengganggu lagu kamu.','success'); });
+  el.musicVolume.addEventListener('input',()=>setMusicVolume(Number(el.musicVolume.value),true));
+  makeDraggable(el.musicFab);
+}
+async function searchMusic(){
+  const q=el.musicSearch.value.trim(); if(!q)return;
+  el.musicResults.innerHTML='<p class="hint">Mencari...</p>';
+  const res=await fetch('/api/music/youtube?q='+encodeURIComponent(q)).then(r=>r.json()).catch(()=>({ok:false,error:'Gagal search'}));
+  if(!res.ok)return el.musicResults.innerHTML=`<p class="hint">${esc(res.error)}</p>`;
+  const isHost=!!state?.me?.isHost;
+  el.musicResults.innerHTML=res.results.map(s=>{
+    const data=esc(JSON.stringify(s));
+    return `<div class="music-item"><img src="${esc(s.thumbnail)}" alt="cover"><div><b>${esc(s.title)}</b><br><span class="hint">${esc(s.artist)} • ${esc(s.duration)}</span></div><div class="music-item-actions"><button class="btn secondary small" data-private-song='${data}'>Play</button>${isHost?`<button class="btn primary small" data-room-song='${data}'>Room</button>`:''}</div></div>`;
+  }).join('')||'<p class="hint">Tidak ada hasil.</p>';
+  $$('[data-private-song]').forEach(b=>b.onclick=()=>{ const song=JSON.parse(b.dataset.privateSong); playPrivateSong(song); });
+  $$('[data-room-song]').forEach(b=>b.onclick=()=>{ const song=JSON.parse(b.dataset.roomSong); playRoomSong(song); });
+}
+function playPrivateSong(song){
+  musicMode='private'; save('uno_music_mode',musicMode); updateMusicModeUI();
+  currentMusic = currentMusic || null;
+  playYoutube(song,0,'private',true);
+  el.musicNow.textContent=`Streaming sendiri: ${song.title}`;
+  toast('Lagu pribadi diputar','success');
+}
+function playRoomSong(song){ if(!state?.me?.isHost)return toast('Hanya host yang bisa play ke room','error'); socket.emit('music:room-play',{...authPayload(),roomCode:state.code,song,positionSec:0},(res)=>{ if(!res?.ok)return toast(res.error,'error'); musicMode='host'; save('uno_music_mode',musicMode); updateMusicModeUI(); toast('Musik room diputar','success'); }); }
+function receiveRoomMusic(music, force=false){
+  currentMusic=music;
+  const key=music?.song?`${music.status}:${music.song.videoId}:${music.startedAt||0}:${music.updatedAt||0}:${Math.floor(Number(music.positionSec||0))}`:'empty';
+  const hasRoom=!!state?.code;
+  if(!music?.song){
+    if(currentYtOwner==='room'&&ytPlayer) ytPlayer.stopVideo();
+    if(musicMode==='host') el.musicNow.textContent='Belum ada musik room.';
+    lastRoomMusicKey=key;
+    return;
+  }
+  if(hasRoom && musicMode==='private'){
+    el.musicNow.textContent=`Mode pribadi aktif. Musik host tersedia: ${music.song.title}`;
+    return;
+  }
+  el.musicNow.textContent=`Room ${music.status}: ${music.song.title} — ${music.by||'Host'}`;
+  if(!force && key===lastRoomMusicKey && currentYtOwner==='room') return;
+  lastRoomMusicKey=key;
+  if(music.status==='playing') syncRoomYoutube(music);
+  else if(music.status==='paused'){
+    if(currentYtOwner!=='room'||currentYtVideoId!==music.song.videoId) playYoutube(music.song,music.positionSec||0,'room',false);
+    setTimeout(()=>{ try{ ytPlayer?.seekTo?.(Number(music.positionSec||0),true); ytPlayer?.pauseVideo?.(); }catch{} },250);
+  } else if(music.status==='stopped'&&currentYtOwner==='room'&&ytPlayer) ytPlayer.stopVideo();
+}
+function syncRoomYoutube(music){
+  const pos=calcMusicPos(music);
+  if(currentYtOwner==='room' && currentYtVideoId===music.song.videoId && ytPlayer){
+    const actual=getYtTime();
+    if(Math.abs(actual-pos)>5) { try{ ytPlayer.seekTo(pos,true); }catch{} }
+    try{ ytPlayer.setVolume(musicVolume); ytPlayer.playVideo(); }catch{}
+    return;
+  }
+  playYoutube(music.song,pos,'room',true);
+}
 function calcMusicPos(music){ if(music.status!=='playing')return music.positionSec||0; return Math.max(0,Number(music.positionSec||0)+(Date.now()-Number(music.startedAt||Date.now()))/1000); }
-function playYoutube(song,start=0){ if(!ytReady||!song.videoId){setTimeout(()=>playYoutube(song,start),500);return;} if(!ytPlayer){ ytPlayer=new YT.Player('ytPlayer',{height:'1',width:'1',videoId:song.videoId,playerVars:{autoplay:1,playsinline:1,start:Math.floor(start)},events:{onReady:e=>e.target.playVideo()}}); } else { ytPlayer.loadVideoById({videoId:song.videoId,startSeconds:Math.floor(start)}); } }
+function playYoutube(song,start=0,owner='private',autoplay=true){
+  if(!ytReady||!song?.videoId){setTimeout(()=>playYoutube(song,start,owner,autoplay),500);return;}
+  currentYtVideoId=song.videoId; currentYtOwner=owner;
+  const startAt=Math.max(0,Math.floor(start||0));
+  if(!ytPlayer){
+    ytPlayer=new YT.Player('ytPlayer',{height:'1',width:'1',videoId:song.videoId,playerVars:{autoplay:autoplay?1:0,playsinline:1,start:startAt,origin:location.origin},events:{onReady:e=>{ try{e.target.setVolume(musicVolume); if(autoplay)e.target.playVideo();}catch{} }}});
+  } else {
+    try{ ytPlayer.setVolume(musicVolume); }catch{}
+    if(ytPlayer.getVideoData?.().video_id===song.videoId){ try{ ytPlayer.seekTo(startAt,true); if(autoplay)ytPlayer.playVideo(); }catch{} }
+    else ytPlayer.loadVideoById({videoId:song.videoId,startSeconds:startAt});
+  }
+}
+function setMusicVolume(v,persist=true){
+  musicVolume=Math.max(0,Math.min(100,Number(v)||0));
+  if(el.musicVolume) el.musicVolume.value=musicVolume;
+  if(el.musicVolumeText) el.musicVolumeText.textContent=`${musicVolume}%`;
+  if(persist) save('uno_music_volume',musicVolume);
+  try{ ytPlayer?.setVolume?.(musicVolume); }catch{}
+}
+function updateMusicModeUI(){
+  const inRoom=!!state?.code;
+  el.musicListenHost?.classList.toggle('primary',musicMode==='host');
+  el.musicListenHost?.classList.toggle('secondary',musicMode!=='host');
+  el.musicPrivateMode?.classList.toggle('primary',musicMode==='private');
+  el.musicPrivateMode?.classList.toggle('ghost',musicMode!=='private');
+  if(el.musicModeHint) el.musicModeHint.textContent = inRoom ? (musicMode==='host' ? 'Kamu mendengar musik host. Volume tetap bisa kamu atur sendiri.' : 'Streaming sendiri aktif. Kamu tidak mendengar musik host.') : 'Belum masuk room: semua user bebas play lagu sendiri.';
+  if(el.musicPauseRoom) el.musicPauseRoom.style.display=state?.me?.isHost?'inline-flex':'none';
+  if(el.musicStopRoom) el.musicStopRoom.style.display=state?.me?.isHost?'inline-flex':'none';
+}
 function getYtTime(){ try{return ytPlayer?.getCurrentTime?.()||0}catch{return 0} }
-function makeDraggable(node){ node.addEventListener('pointerdown',e=>{draggingMusic=true;dragOffset={x:e.clientX-node.offsetLeft,y:e.clientY-node.offsetTop};node.setPointerCapture(e.pointerId)}); node.addEventListener('pointermove',e=>{ if(!draggingMusic)return; node.style.left=Math.max(8,Math.min(innerWidth-66,e.clientX-dragOffset.x))+'px'; node.style.top=Math.max(8,Math.min(innerHeight-66,e.clientY-dragOffset.y))+'px'; node.style.right='auto'; node.style.bottom='auto'; }); node.addEventListener('pointerup',()=>draggingMusic=false); }
+function makeDraggable(node){ node.addEventListener('pointerdown',e=>{ if(e.button!==0)return; draggingMusic=true; dragOffset={x:e.clientX-node.offsetLeft,y:e.clientY-node.offsetTop};node.setPointerCapture(e.pointerId); node.classList.add('dragging'); }); node.addEventListener('pointermove',e=>{ if(!draggingMusic)return; node.style.left=Math.max(8,Math.min(innerWidth-66,e.clientX-dragOffset.x))+'px'; node.style.top=Math.max(8,Math.min(innerHeight-66,e.clientY-dragOffset.y))+'px'; node.style.right='auto'; node.style.bottom='auto'; }); node.addEventListener('pointerup',()=>{draggingMusic=false; node.classList.remove('dragging');}); node.addEventListener('pointercancel',()=>{draggingMusic=false; node.classList.remove('dragging');}); }
 
 function bindVoice(){ el.joinVoiceBtn.addEventListener('click',joinVoice); el.leaveVoiceBtn.addEventListener('click',leaveVoice); }
 async function joinVoice(){ if(!state?.code)return toast('Masuk room dulu','error'); try{ localStream=await navigator.mediaDevices.getUserMedia({audio:true}); voiceActive=true; socket.emit('voice:join',{...authPayload(),roomCode:state.code},async(res)=>{ if(!res?.ok)return toast(res.error,'error'); for(const peer of res.peers||[]) await createOffer(peer.playerId); }); toast('Voice aktif','success'); }catch(e){toast('Voice gagal: '+e.message,'error')} }

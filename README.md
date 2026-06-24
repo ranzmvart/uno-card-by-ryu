@@ -58,3 +58,24 @@ Data tersimpan di:
 - Untuk voice di HP, gunakan link HTTPS dari Railway.
 - YouTube player memakai embed; beberapa video bisa menolak embed. Kalau tidak bunyi, pilih hasil lagu lain.
 - Browser HP kadang butuh tombol “Aktifkan HP” sebelum audio bisa terdengar.
+
+
+## v1.1 Music Sync Fix
+
+Perbaikan khusus musik tanpa mengubah gameplay UNO:
+
+- Lagu host tidak restart lagi saat giliran berpindah.
+- Semua pemain bisa mengatur volume sendiri dari slider.
+- Sebelum masuk room, semua user bisa cari dan play lagu sendiri.
+- Di dalam room, host bisa memutar musik untuk seluruh room.
+- Pemain bisa memilih mode **Dengar Host** atau **Streaming Sendiri**.
+- Tombol music di laptop bisa diklik normal dan tetap bisa digeser lewat tombol kecil.
+
+Cara pakai singkat:
+
+1. Klik tombol ♪.
+2. Cari lagu YouTube.
+3. Klik **Play** untuk dengar sendiri.
+4. Host klik **Room** agar semua room mendengar lagu yang sama.
+5. Pemain bisa atur volume masing-masing.
+6. Pemain yang tidak mau mendengar host bisa pilih **Streaming Sendiri** lalu play lagu pilihannya.

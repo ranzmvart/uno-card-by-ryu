@@ -1,7 +1,7 @@
 {
   "name": "uno-by-ryuu-final",
-  "version": "1.0.0",
-  "description": "UNO-style realtime multiplayer card game with accounts, profiles, shop, crates, friends, voice, shared music, persistent rooms, and responsive UI.",
+  "version": "1.1.0",
+  "description": "UNO by Ryuu - music sync and private streaming fix",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
