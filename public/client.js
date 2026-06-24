@@ -59,9 +59,21 @@ function bindNavigation(){
   el.logoutBtn.addEventListener('click',()=>{ localStorage.removeItem('uno_auth'); localStorage.removeItem('uno_room'); auth=null; profile=null; state=null; setAuthUI(false); showPage('home'); toast('Logout berhasil.'); });
 }
 function showPage(name){
-  $$('.page').forEach(p=>p.classList.remove('active')); const page=$(`page-${name}`); if(page) page.classList.add('active');
+  $$('.page').forEach(p=>p.classList.remove('active'));
+  const page=$(`page-${name}`);
+  if(page) page.classList.add('active');
   $$('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.page===name));
-  if(name==='rooms') refreshRooms(); if(name==='leaderboard') refreshLeaderboard(); if(name==='profile') renderProfile(); if(name==='shop') renderShop(); if(name==='inventory') renderInventory(); if(name==='crates') renderCrates(); if(name==='friends') renderFriends();
+  document.body.dataset.page = name;
+  document.body.classList.toggle('in-room', name==='game' && !!state?.code);
+  document.body.classList.toggle('game-lobby', name==='game' && state?.status==='lobby');
+  document.body.classList.toggle('game-playing', name==='game' && state?.status!=='lobby');
+  if(name==='rooms') refreshRooms();
+  if(name==='leaderboard') refreshLeaderboard();
+  if(name==='profile') renderProfile();
+  if(name==='shop') renderShop();
+  if(name==='inventory') renderInventory();
+  if(name==='crates') renderCrates();
+  if(name==='friends') renderFriends();
 }
 function setAuthUI(ok){ document.body.classList.toggle('is-auth',!!ok); if(ok&&profile){ el.miniProfile.classList.remove('hidden'); el.miniProfile.innerHTML=`${avatarHTML(profile,'avatar')}<div><b>${esc(profile.displayName)}</b><br><span>${fmtPoints(profile.points)} pts</span></div>`; } else { el.miniProfile.classList.add('hidden'); } }
 function bindAuth(){
@@ -84,9 +96,9 @@ function reconnectRoom(code,showError=true){ socket.emit('reconnectRoom',{...aut
 
 function bindGame(){
   el.copyRoomBtn.addEventListener('click',()=>navigator.clipboard?.writeText(state?.code||''));
-  el.leaveRoomBtn.addEventListener('click',()=>{ socket.emit('leaveRoom',{...authPayload(),roomCode:state?.code},()=>{ state=null; localStorage.removeItem('uno_room'); showPage('rooms'); refreshRooms(); }); });
+  el.leaveRoomBtn.addEventListener('click',()=>{ socket.emit('leaveRoom',{...authPayload(),roomCode:state?.code},()=>{ state=null; localStorage.removeItem('uno_room'); document.body.classList.remove('in-room','game-lobby','game-playing'); showPage('rooms'); refreshRooms(); }); });
   el.startGameBtn.addEventListener('click',()=>socket.emit('startGame',{...authPayload(),roomCode:state?.code},cbToast));
-  el.drawBtn.addEventListener('click',()=>socket.emit('drawCard',{...authPayload(),roomCode:state?.code},cbToast));
+  el.drawBtn.addEventListener('click',()=>socket.emit('drawCard',{...authPayload(),roomCode:state?.code},(res)=>{ if(!res?.ok){ animateNoCards(false); return toast(res?.error||'Gagal ambil kartu','error'); } }));
   el.passBtn.addEventListener('click',()=>socket.emit('passTurn',{...authPayload(),roomCode:state?.code},cbToast));
   el.unoBtn.addEventListener('click',()=>socket.emit('sayUno',{...authPayload(),roomCode:state?.code},cbToast));
   el.restartBtn.addEventListener('click',()=>socket.emit('restartGame',{...authPayload(),roomCode:state?.code},cbToast));
@@ -98,6 +110,9 @@ function cbToast(res){ if(!res?.ok) toast(res?.error||'Gagal','error'); }
 function sendChat(){ const text=el.chatInput.value.trim(); if(!text)return; el.chatInput.value=''; socket.emit('sendChat',{...authPayload(),roomCode:state?.code,text},cbToast); }
 function bindTabs(){ $$('[data-game-tab]').forEach(b=>b.addEventListener('click',()=>{ $$('[data-game-tab]').forEach(x=>x.classList.remove('active')); b.classList.add('active'); $$('.tab-panel').forEach(p=>p.classList.remove('active')); $(`tab-${b.dataset.gameTab}`).classList.add('active'); })); }
 function renderGame(){ if(!state)return; const me=state.me||{}; const isLobby=state.status==='lobby'; const isPlaying=state.status==='playing'; const isFinished=state.status==='finished'; const isHost=me.isHost; const turn=state.players.find(p=>p.id===state.currentPlayerId); const winner=state.players.find(p=>p.accountId===state.winnerAccountId); const myTurn=isPlaying&&state.currentPlayerId===me.id;
+  document.body.classList.add('in-room');
+  document.body.classList.toggle('game-lobby', isLobby);
+  document.body.classList.toggle('game-playing', !isLobby);
   el.roomCodeText.textContent=state.code; el.roomNameText.textContent=state.name||''; el.lobbyPanel.style.display=isLobby?'block':'none'; el.boardPanel.style.display=isLobby?'none':'grid'; el.startGameBtn.disabled=!isHost||state.players.length<2; el.restartBtn.style.display=isFinished&&isHost?'inline-flex':'none'; el.backLobbyBtn.style.display=isFinished&&isHost?'inline-flex':'none';
   el.drawBtn.disabled=!(myTurn&&!state.myTurnState?.hasDrawn); el.passBtn.disabled=!(myTurn&&state.myTurnState?.hasDrawn&&state.myTurnState?.drawnCardPlayable); el.unoBtn.disabled=!(isPlaying&&me.hand?.length===1);
   if(isLobby){ el.statusText.textContent='Lobby'; el.turnAdvice.textContent='Host memulai game saat pemain siap.'; el.handHint.textContent='Kartu dibagikan setelah game dimulai.'; }
@@ -111,8 +126,43 @@ function renderPlayers(){ el.playersList.innerHTML=(state.players||[]).map(p=>{ 
 function renderLogs(){ el.logList.innerHTML=(state.logs||[]).map(l=>`<div class="log-item">${esc(l.text)}</div>`).join('')||'<div class="log-item">Belum ada log.</div>'; }
 function renderChat(){ el.chatList.innerHTML=(state.chat||[]).map(c=>`<div class="chat-item"><b>${esc(c.name)}</b><br>${esc(c.text)}</div>`).join('')||'<div class="chat-item">Belum ada chat.</div>'; el.chatList.scrollTop=el.chatList.scrollHeight; }
 function renderPowerList(){ const powers=profile?.inventory?.powers||{}; const powerIds=['power_draw_shield','power_double_points','power_uno_guard']; el.powerList.innerHTML=powerIds.map(id=>{ const item=shop.find(i=>i.id===id)||{name:id,desc:''}; const qty=powers[id]||0; return `<div class="item-card"><h3>${esc(item.name)} <span class="pill">x${qty}</span></h3><p class="hint">${esc(item.desc)}</p><button class="btn secondary full" data-use-power="${id}" ${qty<1?'disabled':''}>Aktifkan</button></div>`; }).join(''); $$('[data-use-power]').forEach(b=>b.addEventListener('click',()=>socket.emit('usePower',{...authPayload(),roomCode:state.code,powerId:b.dataset.usePower},(res)=>{ if(!res?.ok)return toast(res.error,'error'); profile=res.profile; toast('Power aktif','success'); renderPowerList(); }))); }
-function renderHand(){ const hand=state.me?.hand||[]; if(!hand.length){ el.handCards.innerHTML='<div class="hint">Belum ada kartu.</div>'; return; } el.handCards.innerHTML=''; hand.forEach((card,i)=>{ const btn=document.createElement('button'); btn.type='button'; btn.className='game-card hand-card'; btn.style.setProperty('--i',i); renderCard(btn,card); const playable=isPlayableClient(card); btn.classList.toggle('playable',playable); btn.classList.toggle('disabled',!playable); btn.disabled=!playable; btn.addEventListener('click',()=>playCard(card)); el.handCards.appendChild(btn); }); el.myNameText.textContent=state.me?.name||'Player'; }
-function playCard(card){ if(card.color==='wild'||card.type==='wild'||card.type==='wild4'){ pendingWildCardId=card.id; el.colorModal.classList.remove('hidden'); return; } socket.emit('playCard',{...authPayload(),roomCode:state.code,cardId:card.id},cbToast); }
+function renderHand(){
+  const hand=state.me?.hand||[];
+  const myTurn=state?.status==='playing'&&state.currentPlayerId===state.me?.id;
+  el.myNameText.textContent=state.me?.name||'Player';
+  if(!hand.length){
+    el.handCards.innerHTML='<div class="empty-hand-card"><b>Tidak ada kartu</b><span>Tunggu kartu dibagikan atau ronde baru dimulai.</span></div>';
+    return;
+  }
+  el.handCards.innerHTML='';
+  let playableCount=0;
+  hand.forEach((card,i)=>{
+    const btn=document.createElement('button');
+    btn.type='button';
+    btn.className='game-card hand-card';
+    btn.style.setProperty('--i',i);
+    renderCard(btn,card);
+    const playable=isPlayableClient(card);
+    if(playable) playableCount++;
+    btn.classList.toggle('playable',playable);
+    btn.classList.toggle('disabled',!playable);
+    btn.disabled=!playable;
+    btn.addEventListener('click',()=>playCard(card));
+    el.handCards.appendChild(btn);
+  });
+  if(myTurn && playableCount===0 && !state.myTurnState?.hasDrawn){
+    const notice=document.createElement('div');
+    notice.className='no-playable-banner';
+    notice.innerHTML='<b>Tidak ada kartu cocok</b><span>Tekan Ambil Kartu untuk lanjut.</span>';
+    el.handCards.prepend(notice);
+    animateNoCards(false);
+  }
+}
+function playCard(card){
+  if(!isPlayableClient(card)){ animateNoCards(true); return; }
+  if(card.color==='wild'||card.type==='wild'||card.type==='wild4'){ pendingWildCardId=card.id; el.colorModal.classList.remove('hidden'); return; }
+  socket.emit('playCard',{...authPayload(),roomCode:state.code,cardId:card.id},cbToast);
+}
 function closeColorModal(){ pendingWildCardId=null; el.colorModal.classList.add('hidden'); }
 function renderCard(target,card,big=false){ target.className=`game-card ${big?'big-card':''}`; if(!card){target.classList.add('empty-card');target.innerHTML='?';return;} target.classList.add(`card-${card.color}`,'asset-card'); if(card.color==='wild')target.classList.add('card-wild'); const text=cardText(card), asset=cardAssetPath(card); target.innerHTML=`<img class="card-img" src="${asset}" alt="${esc(text)}" draggable="false" onerror="this.remove()"><span class="fallback-corner top">${esc(text)}</span><span class="fallback-value">${esc(text)}</span><span class="fallback-corner bottom">${esc(text)}</span>`; }
 function cardAssetPath(card){ const base='/assets/cards/'; if(card.type==='wild')return base+'Wild.jpg'; if(card.type==='wild4')return base+'Wild_Draw_4.jpg'; const m={red:'Red',yellow:'Yellow',green:'Green',blue:'Blue'}; const c=m[card.color]||'Red'; if(card.type==='number')return `${base}${c}_${card.value}.jpg`; if(card.type==='draw2')return `${base}${c}_Draw_2.jpg`; if(card.type==='skip')return `${base}${c}_Skip.jpg`; if(card.type==='reverse')return `${base}${card.color==='red'?'RED':c}_Reverse.jpg`; return base+'Wild.jpg'; }
@@ -120,7 +170,39 @@ function cardText(card){ if(card.type==='number')return String(card.value); if(c
 function isPlayableClient(card){ if(!state||state.status!=='playing'||state.currentPlayerId!==state.me?.id)return false; if(state.myTurnState?.hasDrawn)return state.myTurnState.drawnCardPlayable&&state.myTurnState.drawnCardId===card.id; const top=state.discardTop; if(!top)return true; if(card.color==='wild'||card.type==='wild'||card.type==='wild4')return true; if(state.currentColor&&card.color===state.currentColor)return true; if(card.type===top.type&&card.type!=='number')return true; if(card.type==='number'&&top.type==='number'&&card.value===top.value)return true; return false; }
 function canChallenge(p){ return state?.status==='playing'&&state.me?.id&&p.id!==state.me.id&&p.cardCount===1&&!p.saidUno; }
 function setupTimer(){ if(timerInterval)clearInterval(timerInterval); const tick=()=>{ const at=state?.status==='finished'?state.autoResetAt:state?.turnEndsAt; if(!at){el.turnTimer.textContent='--';return;} const left=Math.max(0,Math.ceil((at-Date.now())/1000)); el.turnTimer.textContent=`${left}s`; }; tick(); timerInterval=setInterval(tick,500); }
-function announce(){ if(!state?.me)return; if(prevState?.currentPlayerId!==state.currentPlayerId&&state.currentPlayerId===state.me.id&&state.status==='playing'){ toast('Giliran kamu!','turn'); cine('🎴','Giliran Kamu','Pilih kartu atau ambil dari deck.'); } if(!prevState?.winnerAccountId&&state.winnerAccountId){ const winner=state.players.find(p=>p.accountId===state.winnerAccountId); cine('🏆','Ronde Selesai',`${winner?.name||'Pemain'} menang!`); } }
+function announce(){
+  if(!state?.me)return;
+  if(prevState?.discardTop?.id && state.discardTop?.id && prevState.discardTop.id!==state.discardTop.id && state.status==='playing'){
+    animateCardToDiscard(state.discardTop);
+  }
+  if(prevState?.currentPlayerId!==state.currentPlayerId&&state.currentPlayerId===state.me.id&&state.status==='playing'){ toast('Giliran kamu!','turn'); cine('🎴','Giliran Kamu','Pilih kartu atau ambil dari deck.'); }
+  if(!prevState?.winnerAccountId&&state.winnerAccountId){ const winner=state.players.find(p=>p.accountId===state.winnerAccountId); cine('🏆','Ronde Selesai',`${winner?.name||'Pemain'} menang!`); }
+}
+
+function animateCardToDiscard(card){
+  if(!card || !el.discardCard) return;
+  const end=el.discardCard.getBoundingClientRect();
+  const hand=el.handCards?.getBoundingClientRect?.();
+  const startX=hand ? Math.min(innerWidth-48, Math.max(48, hand.left+hand.width/2)) : innerWidth/2;
+  const startY=hand ? Math.min(innerHeight-80, hand.top+Math.min(hand.height,120)/2) : innerHeight-80;
+  const ghost=document.createElement('div');
+  renderCard(ghost,card,true);
+  ghost.classList.add('play-card-ghost');
+  ghost.style.left=startX+'px';
+  ghost.style.top=startY+'px';
+  document.body.appendChild(ghost);
+  requestAnimationFrame(()=>{
+    ghost.style.left=(end.left+end.width/2)+'px';
+    ghost.style.top=(end.top+end.height/2)+'px';
+    ghost.classList.add('fly-in');
+  });
+  setTimeout(()=>ghost.remove(),900);
+}
+function animateNoCards(forceToast=false){
+  if(forceToast) toast('Kartu ini belum bisa dimainkan. Ambil kartu atau tunggu giliran.','error');
+  el.handCards?.classList.add('no-card-bounce');
+  setTimeout(()=>el.handCards?.classList.remove('no-card-bounce'),650);
+}
 
 function loadShopData(){ fetch('/api/shop').then(r=>r.json()).then(d=>{shop=d.shop||[];crates=d.crates||[];renderShop();renderCrates();renderInventory();}); }
 function bindShop(){ }

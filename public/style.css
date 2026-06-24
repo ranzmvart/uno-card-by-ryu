@@ -14,3 +14,90 @@
 .music-item-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .music-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 @media(max-width:540px){.music-mode-row{grid-template-columns:1fr}.music-item{grid-template-columns:48px minmax(0,1fr);}.music-item-actions{grid-column:1 / -1;justify-content:stretch}.music-item-actions .btn{flex:1}.music-panel{bottom:calc(86px + var(--safe-bottom));max-height:70vh}.music-volume{grid-template-columns:1fr auto}.music-volume label{grid-column:1/-1}.music-controls .btn{flex:1}}
+
+/* v1.2 Game room UI/UX polish: compact room mode, mobile-friendly board, card animations */
+body.in-room .sidebar{display:none!important}
+body.in-room .app-shell{display:block;max-width:1420px;margin:0 auto;padding:12px 12px calc(108px + var(--safe-bottom));}
+body.in-room .content{width:100%;max-width:none}
+body.in-room .page:not(#page-game){display:none!important}
+body.in-room #page-game.page.active{display:block!important;animation:fade .18s ease-out}
+body.in-room .game-page{display:block}
+body.in-room .game-top{position:sticky;top:10px;z-index:200;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin-bottom:12px;backdrop-filter:blur(18px)}
+body.in-room .game-top h2{font-size:clamp(18px,2.4vw,26px);line-height:1.05;margin:0}
+body.in-room .game-top .eyebrow{margin-bottom:2px}
+body.in-room .game-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+body.in-room .game-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,380px);gap:12px;align-items:start}
+body.in-room .table,.body.in-room .game-side{min-width:0}
+body.in-room .table{padding:16px;overflow:hidden}
+body.in-room .game-side{padding:12px;max-height:calc(100vh - 112px);overflow:hidden;display:flex;flex-direction:column}
+body.in-room .tab-panel.active{min-height:0;overflow:auto;padding-right:2px}
+body.in-room .log-list,body.in-room .chat-list{max-height:calc(100vh - 245px)}
+body.in-room .table-center{grid-template-columns:minmax(120px,180px) minmax(170px,1fr);gap:18px;align-items:center;justify-items:center}
+body.in-room .deck-zone,body.in-room .discard-zone{width:100%}
+body.in-room .deck-zone .btn{margin-top:8px;width:100%}
+body.in-room .action-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+body.in-room .hand-panel{margin-top:12px;padding:14px;overflow:hidden}
+body.in-room .hand-heading{align-items:center}
+body.in-room .hand-cards{min-height:144px;align-items:center;overscroll-behavior-x:contain}
+body.in-room .player-card{padding:9px;border-radius:14px}
+body.in-room .tabs{padding-bottom:4px;scrollbar-width:none}
+body.in-room .tabs::-webkit-scrollbar,.hand-cards::-webkit-scrollbar{height:0}
+body.in-room .tab{white-space:nowrap;min-height:38px}
+.empty-hand-card,.no-playable-banner{flex:0 0 auto;min-width:min(320px,88vw);border:1px dashed #ffffff25;background:linear-gradient(135deg,#0b1220,#101827);border-radius:18px;padding:16px;display:grid;gap:4px;align-content:center;color:#dbeafe;box-shadow:inset 0 0 0 1px #ffffff08}
+.empty-hand-card b,.no-playable-banner b{font-size:16px}.empty-hand-card span,.no-playable-banner span{font-size:13px;color:var(--muted)}
+.no-playable-banner{border-color:#f59e0b55;background:linear-gradient(135deg,#1a1408,#111827);color:#fff7ed}
+.no-card-bounce{animation:noCardBounce .55s ease}
+.play-card-ghost{position:fixed!important;z-index:1800!important;pointer-events:none!important;margin:0!important;transform:translate(-50%,-50%) scale(.72) rotate(-8deg);transition:left .78s cubic-bezier(.16,.9,.2,1),top .78s cubic-bezier(.16,.9,.2,1),transform .78s cubic-bezier(.16,.9,.2,1),opacity .78s;box-shadow:0 28px 70px #000c,0 0 36px #ffffff22!important;will-change:left,top,transform,opacity}
+.play-card-ghost.fly-in{transform:translate(-50%,-50%) scale(.92) rotate(0deg);opacity:.04}
+.hand-card.playable{animation:cardReady 1.6s ease-in-out infinite}
+.hand-card:active{transform:translateY(-12px) scale(.98)!important}
+@keyframes noCardBounce{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+@keyframes cardReady{0%,100%{filter:brightness(1)}50%{filter:brightness(1.16)}}
+@media(min-width:981px){
+  body.in-room .game-page{min-height:calc(100vh - 24px)}
+  body.in-room .hand-cards{padding-left:10px;padding-right:10px}
+  body.in-room .hand-card{margin-right:-8px}
+  body.in-room .hand-card.playable{margin-right:2px}
+}
+@media(max-width:760px){
+  body.in-room .app-shell{padding:8px 8px calc(118px + var(--safe-bottom))}
+  body.in-room .game-top{top:6px;border-radius:18px;padding:10px;gap:8px;align-items:flex-start;flex-direction:column}
+  body.in-room .game-actions{width:100%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+  body.in-room .game-actions .badge,body.in-room .game-actions .btn,body.in-room .game-actions .icon-btn{width:100%;min-height:36px;justify-content:center;text-align:center;font-size:12px;padding:8px 9px}
+  body.in-room .game-layout{display:flex!important;flex-direction:column;gap:10px}
+  body.in-room .table{width:100%;padding:12px;border-radius:18px;order:1}
+  body.in-room .game-side{width:100%;max-height:none;padding:10px;border-radius:18px;order:2}
+  body.in-room .hand-panel{order:3;border-radius:18px;padding:12px;margin-top:10px}
+  body.in-room .status-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;flex-direction:row!important}
+  body.in-room .status-row h2{font-size:20px;line-height:1.1;margin:0}
+  body.in-room .timer{min-width:54px;height:54px;font-size:18px}
+  body.in-room .table-center{display:grid!important;grid-template-columns:96px minmax(0,1fr)!important;gap:8px!important;align-items:center;justify-items:center;margin-top:8px}
+  body.in-room .deck-card{width:76px;height:104px;border-radius:14px;font-size:16px;letter-spacing:.08em}
+  body.in-room .game-card.big-card{width:104px;height:150px}
+  body.in-room .game-card{width:70px;height:102px;border-radius:12px}
+  body.in-room .fallback-value{font-size:22px}
+  body.in-room .fallback-corner{font-size:11px}
+  body.in-room .deck-zone .btn{min-height:34px;font-size:12px;padding:8px 8px;margin-top:6px}
+  body.in-room .action-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}.action-row .btn{min-height:38px;padding:8px 7px;font-size:12px}
+  body.in-room .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;overflow:visible}
+  body.in-room .tab{padding:8px 6px;font-size:12px;min-height:34px}
+  body.in-room .tab-panel.active{max-height:232px;overflow:auto}
+  body.in-room .chat-list,body.in-room .log-list{max-height:162px}
+  body.in-room .chat-send{grid-template-columns:1fr 68px}
+  body.in-room .player-card{padding:8px;border-radius:13px}.player-meta{font-size:11px}.avatar{width:34px;height:34px}
+  body.in-room .hand-heading{display:block}.hand-heading h2{font-size:18px;margin:2px 0}.hand-heading .hint{font-size:12px}
+  body.in-room .hand-cards{min-height:120px;padding:10px 4px 6px;gap:6px}
+  body.in-room .hand-card{margin-right:-20px;transform:translateY(0) rotate(calc((var(--i,0) - 4) * .5deg))}
+  body.in-room .hand-card.playable{margin-right:-4px;transform:translateY(-7px)!important}
+  .empty-hand-card,.no-playable-banner{min-width:min(260px,82vw);padding:12px}
+  body.in-room .voice-widget{width:min(260px,calc(100vw - 20px));left:10px;bottom:calc(10px + var(--safe-bottom));padding:9px;border-radius:18px}
+  body.in-room .voice-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}.voice-row .btn{font-size:12px;padding:8px}
+  body.in-room .music-fab{width:52px;height:52px;border-radius:18px;font-size:23px;right:10px;bottom:calc(84px + var(--safe-bottom))}
+}
+@media(max-width:380px){
+  body.in-room .table-center{grid-template-columns:84px minmax(0,1fr)!important}
+  body.in-room .game-card.big-card{width:92px;height:132px}
+  body.in-room .deck-card{width:68px;height:94px}
+  body.in-room .game-actions{grid-template-columns:1fr 1fr}.game-actions .badge{grid-column:1/-1}
+  body.in-room .tabs{grid-template-columns:repeat(2,1fr)}
+}

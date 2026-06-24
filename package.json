@@ -1,7 +1,7 @@
 {
   "name": "uno-by-ryuu-final",
-  "version": "1.1.0",
-  "description": "UNO by Ryuu - music sync and private streaming fix",
+  "version": "1.2.0",
+  "description": "UNO by Ryuu - clean game room UI and animation polish",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
